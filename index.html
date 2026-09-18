@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Monitoramento Aquaponia</title>
+    <!-- Importa a biblioteca MQTT para navegadores -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f4f9; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); max-width: 400px; }
+        .valor { font-weight: bold; color: #0056b3; font-size: 1.2em; }
+        .status { color: red; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>Sistema Aquapônico</h2>
+        <p>Status da Conexão: <span id="status" class="status">Aguardando...</span></p>
+        <hr>
+        <p>Temperatura: <span id="temp" class="valor">--</span> °C</p>
+        <p>pH da Água: <span id="ph" class="valor">--</span></p>
+        <p>TDS: <span id="tds" class="valor">--</span> ppm</p>
+        <p>Fluxo: <span id="fluxo" class="valor">--</span> L/min</p>
+        <p>Bomba: <span id="bomba" class="valor">--</span></p>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. INSIRA SUAS CREDENCIAIS AQUI
+        // ==========================================
+        const broker = "39953b53f9834349834631e69c8abcdc.s1.eu.hivemq.cloud"; 
+        const porta = 8884; // ATENÇÃO: Para WebSockets no HiveMQ é 8884, não 8883
+        const usuario = "site";
+        const senha = "Tetris67";
+        const topico = "aquaponia/sensores";
+
+        // Cria um ID de cliente aleatório para o navegador
+        const clientId = "web_" + Math.random().toString(16).substr(2, 8);
+        const client = new Paho.MQTT.Client(broker, porta, "/mqtt", clientId);
+
+        // ==========================================
+        // 2. FUNÇÕES DE CALLBACK (O que fazer quando algo acontece)
+        // ==========================================
+        client.onConnectionLost = function(responseObject) {
+            document.getElementById("status").innerText = "Desconectado";
+            document.getElementById("status").style.color = "red";
+            console.error("Conexão perdida:", responseObject.errorMessage);
+        };
+
+        client.onMessageArrived = function(message) {
+            console.log("Novo pacote recebido:", message.payloadString);
+            try {
+                // Transforma o texto JSON numa estrutura de dados JavaScript
+                const dados = JSON.parse(message.payloadString);
+
+                // Atualiza o HTML com os valores recebidos do ESP32
+                document.getElementById("temp").innerText = dados.temperatura.toFixed(1);
+                document.getElementById("ph").innerText = dados.pH.toFixed(1);
+                document.getElementById("tds").innerText = dados.tds;
+                document.getElementById("fluxo").innerText = dados.fluxo.toFixed(1);
+                document.getElementById("bomba").innerText = dados.bomba_ativa ? "Ligada" : "Desligada";
+                
+            } catch (e) {
+                console.error("Erro ao decodificar o JSON:", e);
+            }
+        };
+
+        // ==========================================
+        // 3. INICIAR A CONEXÃO
+        // ==========================================
+        const options = {
+            useSSL: true,
+            userName: usuario,
+            password: senha,
+            onSuccess: function() {
+                document.getElementById("status").innerText = "Online";
+                document.getElementById("status").style.color = "green";
+                // Assim que conectar, inscreve-se no tópico
+                client.subscribe(topico);
+            },
+            onFailure: function(err) {
+                document.getElementById("status").innerText = "Falha na conexão";
+                console.error("Falha ao conectar:", err.errorMessage);
+            }
+        };
+
+        client.connect(options);
+    </script>
+</body>
+</html>
